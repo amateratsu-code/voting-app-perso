@@ -1,4 +1,6 @@
 FROM node:22-bookworm
+#Pour faire marcher en CI et en local
+#FROM --platform=linux/amd64 node:22-bookworm
 
 RUN apt-get update -qq && apt-get install -qy \ 
     ca-certificates \

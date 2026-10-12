@@ -15,12 +15,59 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
-      - name: Build application images
-        run: docker compose build vote result worker seed
-
+      #ne va pas marcher en local
+      #macbook linux/arm64
+      #GithubAction linux/amd64
+      #voir la solution dans le Dockerfile pour faire marcher en local et sur la CI
       - name: Run application integration tests
         run: docker compose -f result/docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from sut
 
       - name: Stop integration test services
         if: always()
         run: docker compose -f result/docker-compose.test.yml down --volumes --remove-orphans
+
+  publish:
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: docker-compose
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: vote
+            context: ./vote
+          - name: result
+            context: ./result
+          - name: worker
+            context: ./worker
+          - name: seed
+            context: ./seed-data
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image prefix
+        id: image
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ steps.image.outputs.prefix }}-${{ matrix.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.prefix }}-${{ matrix.name }}:latest
