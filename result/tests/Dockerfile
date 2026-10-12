@@ -1,4 +1,4 @@
-FROM node:8.9-slim
+FROM node:22-bookworm
 
 RUN apt-get update -qq && apt-get install -qy \ 
     ca-certificates \
