@@ -11,8 +11,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      #verifier que le docker compose est correctement formatter
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
       - name: Build application images
         run: docker compose build vote result worker seed
+
+      - name: Run application integration tests
+        run: docker compose -f result/docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from sut
+
+      - name: Stop integration test services
+        if: always()
+        run: docker compose -f result/docker-compose.test.yml down --volumes --remove-orphans
