@@ -5,7 +5,7 @@ metadata:
     app: result
   name: result
   annotations:
-    gitops-test: "test-001"
+    gitops-test: "test-002"
 spec:
   replicas: 1
   selector:
