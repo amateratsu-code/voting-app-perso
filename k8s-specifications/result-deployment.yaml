@@ -4,6 +4,8 @@ metadata:
   labels:
     app: result
   name: result
+  annotations:
+    gitops-test: "test-001"
 spec:
   replicas: 1
   selector:
