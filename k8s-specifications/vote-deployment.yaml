@@ -15,7 +15,7 @@ spec:
         app: vote
     spec:
       containers:
-      - image: ghcr.io/amateratsu-code/voting-app-perso-vote:latest
+      - image: ghcr.io/amateratsu-code/voting-app-perso-vote:fc9219e3d888aacd9063e8ee5edcc8abb6a16269
         name: vote
         ports:
         - containerPort: 80
