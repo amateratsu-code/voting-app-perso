@@ -10,11 +10,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       #verifier que le docker compose est correctement formatter
       - name: Validate Compose configuration
         run: docker compose config --quiet
-
       #ne va pas marcher en local
       #macbook linux/arm64
       #GithubAction linux/amd64
@@ -48,6 +49,18 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether this image changed
+        id: changes
+        run: |
+          before="${{ github.event.before }}"
+          if [[ "$before" =~ ^0+$ ]] || ! git diff --quiet "$before" "$GITHUB_SHA" -- "${{ matrix.context }}/"; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,6 +77,7 @@ jobs:
         run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
+        if: steps.changes.outputs.changed == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
@@ -71,3 +85,44 @@ jobs:
           tags: |
             ${{ steps.image.outputs.prefix }}-${{ matrix.name }}:${{ github.sha }}
             ${{ steps.image.outputs.prefix }}-${{ matrix.name }}:latest
+
+  update-manifests:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # a quoi sert
+
+      - name: Update, commit and push manifests
+        env:
+          BEFORE: ${{ github.event.before }} #a quoi sert 
+        run: |
+          set -e
+
+          for name in vote result worker; do
+            manifest="k8s-specifications/${name}-deployment.yaml"
+
+            if [[ "$BEFORE" =~ ^0+$ ]] || ! git diff --quiet "$BEFORE" "$GITHUB_SHA" -- "$name/"; then
+              image="ghcr.io/${GITHUB_REPOSITORY,,}-${name}:${GITHUB_SHA}"
+              sed -i "s|image: .*|image: ${image}|" "$manifest"
+            fi
+          done
+
+          git add \
+            k8s-specifications/vote-deployment.yaml \
+            k8s-specifications/result-deployment.yaml \
+            k8s-specifications/worker-deployment.yaml
+
+          if git diff --cached --quiet; then
+            echo "Aucun manifest à mettre à jour"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update Kubernetes image tags to ${GITHUB_SHA}"
+          git push origin "HEAD:${GITHUB_REF}"
