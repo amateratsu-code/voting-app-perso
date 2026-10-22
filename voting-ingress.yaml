@@ -3,8 +3,6 @@ kind: Ingress
 metadata:
   name: voting-ingress
   namespace: default
-  annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: default-result-strip@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
